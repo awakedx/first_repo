@@ -64,6 +64,12 @@ func CheckAnswers(bot *telego.Bot, collectionUsers *mongo.Collection, collection
 		if err != nil {
 			log.Fatal(err)
 		}
+	} else {
+		msg := tu.Message(tu.ID(userId),
+			"Ви допустили помилку, доступ не надано.").WithReplyMarkup(tu.ReplyKeyboardRemove().WithRemoveKeyboard())
+		err = bot.DeclineChatJoinRequest(&telego.DeclineChatJoinRequestParams{ChatID: tu.ID(chatGroupID), UserID: userId})
+		bot.SendMessage(msg)
+		dltUser(collectionUsers, collectionQuestions, userId)
 	}
 }
 
@@ -169,6 +175,20 @@ func AskQuestion(bot *telego.Bot, userId int64, answ int64, collectionUsers *mon
 
 	PushAnswUser(bot, collectionUsers, collectionQuestions, userId, result, update)
 }
+func dltUser(collectionUsers *mongo.Collection, collectionQuestions *mongo.Collection, userId int64) {
+
+	filter := bson.M{"userid": userId}
+
+	_, err := collectionUsers.DeleteOne(context.TODO(), filter)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, err = collectionQuestions.DeleteMany(context.TODO(), filter)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
 
 func main() {
 
@@ -234,17 +254,7 @@ func main() {
 			bot.SendMessage(msg)
 		} else if update.Message.LeftChatMember != nil {
 			userId := update.Message.From.ID
-			filter := bson.M{"userid": userId}
-
-			_, err := collectionUsers.DeleteOne(context.TODO(), filter)
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			_, err = collectionQuestions.DeleteMany(context.TODO(), filter)
-			if err != nil {
-				log.Fatal(err)
-			}
+			dltUser(collectionUsers, collectionQuestions, userId)
 
 		} else if update.Message != nil && update.Message.LeftChatMember == nil {
 
